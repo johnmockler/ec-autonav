@@ -1,8 +1,11 @@
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
+import Arrow
 
-IMAGEPATH = '/home/john/Pictures/testing_image.png'
+IMAGEPATH = '/home/john/Pictures/simpleTest.png'
+ARROW1 = '/home/john/Pictures/arrow_example.png'
+ARROW2 = '/home/john/Pictures/broken_arrow.png'
 
 LAND_MIN = np.array([26, 0, 20])
 LAND_MAX = np.array([28, 100, 255])
@@ -25,8 +28,9 @@ LO_DEPTH_MAX = np.array([95, 150, 255])
 SHALLOW_DEPTH_MIN = np.array([56, 0, 100])
 SHALLOW_DEPTH_MAX = np.array([58, 150, 255])
 
+#for light purple
 TRAFFIC_MIN1 = np.array([150, 10, 10])
-TRAFFIC_MAX1 = np.array([151, 255, 255])
+TRAFFIC_MAX1 = np.array([151, 200, 255])
 
 SILVER_LINE_MIN = np.array([0, 0, 150])
 SILVER_LINE_MAX = np.array([0, 0, 200])
@@ -46,7 +50,6 @@ class MyMap:
     def __init__(self):
         self.image = cv2.imread(IMAGEPATH, 1)
         dim = self.image.shape
-        print(dim)
         self.map = np.zeros((dim[0], dim[1]))
         self.hsv_img = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
         self.kernel = np.ones((5, 5), np.uint8)
@@ -56,8 +59,9 @@ class MyMap:
         self.med_contour = 0
         self.high_contour = 0
         self.traffic_contour = 0
+        self.traffic_mask = 0
 
-
+    #update this function to only search a given boundary?
     def loadMap(self):
         # FIND CONTOURS
         landMask = cv2.inRange(self.hsv_img, LAND_MIN, LAND_MAX)
@@ -80,8 +84,9 @@ class MyMap:
         highMask = cv2.inRange(self.hsv_img, HI_DEPTH_MIN, HI_DEPTH_MAX)
         self.high_contour, high_hierarchy = cv2.findContours(highMask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        trafficMask = cv2.inRange(self.hsv_img, TRAFFIC_MIN1, TRAFFIC_MAX1)
-        self.traffic_contour, traffic_hierarchy = cv2.findContours(trafficMask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        self.trafficMask = cv2.inRange(self.hsv_img, TRAFFIC_MIN1, TRAFFIC_MAX1)
+        trafficBlur = cv2.GaussianBlur(trafficMask,(3,3),0)
+        self.traffic_contour, traffic_hierarchy = cv2.findContours(trafficBlur, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         or1 = cv2.bitwise_or(shallowMaskAll, lowMask)
         or2 = cv2.bitwise_or(or1, medMaskAll)
@@ -106,6 +111,7 @@ class MyMap:
     def returnMap(self):
         return self.map
 
+    #update to more efficiently search for obstacles
     def isObstacle(self, y, x):
 
 
@@ -135,6 +141,83 @@ class MyMap:
                 return 1
 
         return 0
+    
+    #find all arrows in an image
+    #need to update to find large arrows
+    def findArrows(self):
+        arrow1, arrow1_area = self.loadModelImage(ARROW1, TRAFFIC_MIN1, TRAFFIC_MAX1,0)
+        arrow2, arrow2_area = self.loadModelImage(ARROW2, TRAFFIC_MIN1, TRAFFIC_MAX1,1)
+        arrows = []
+
+        for contour in self.traffic_contour:
+                if ((cv2.contourArea(contour) <= 1.5*arrow1_area and cv2.contourArea(contour) >= 0.8*arrow1_area and cv2.matchShapes(contour,arrow1[0], 3,0.0) < 1) 
+                or (cv2.contourArea(contour) <= 1.7*arrow2_area and cv2.contourArea(contour) >= 0.2*arrow2_area  and cv2.matchShapes(contour, arrow2[0],1,0.0) < 5)):
+                    
+                    moment = cv2.moments(contour)
+                    cx = int(moment['m10']/moment['m00'])
+                    cy = int(moment['m01']/moment['m00'])
+                    (x,y),(MA,ma),angle = cv2.fitEllipse(contour)
+                    arrow = Arrow.Arrow(cx, cy, angle)
+
+                    #for test 
+                    rect = cv2.minAreaRect(contour)
+                    box = cv2.boxPoints(rect)
+                    box = np.int0(box)
+                    cv2.drawContours(self.image,[box],0,(0,0,255),2)
+                    #[X, Y, W, H] = cv2.boundingRect(contour)
+                    #cv2.rectangle(self.image, (X,Y), (X+W, Y+H), (255, 0, 0), 2)
+                    self.image[cy, cx] = [255, 0, 0]
+
+
+
+
+                    print(angle)
+                    arrows.append(arrow)
+        plt.imshow(self.image,cmap='gray')
+        plt.show()
+        return arrows
+    
+    #backup to find arrows using good features to track algorithm
+    def findArrows2(self):
+        #with corners, next step is to verify whether area around corners denotes an arrow
+        corners = cv2.goodFeaturesToTrack(self.traffic_mask,25,0.01,10)
+        corners = np.int0(corners)
+
+
+    #find arrow direction
+    def arrowDirection(self):
+        return -1
+
+    #finds traffic buffer zones
+    def findTrafficZones(self):
+        return -1
+
+    #finds traffic boundaries
+    def findTrafficBounds(self):
+        return -1
+
+
+    def loadModelImage(self, impath,min_color_range, max_color_range, mode):
+        try:
+            image = cv2.imread(impath,1)
+            hsv_image = cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
+            masked_image = cv2.inRange(hsv_image, min_color_range, max_color_range)
+
+            if mode == 1:
+                canny_image = cv2.Canny(masked_image,0,150)
+                blurred_image = cv2.blur(canny_image,(2,2))
+                ret, threshed_image = cv2.threshold()
+                contour, heirarchy = cv2.findContours(threshed_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            else:
+                blurred_image = cv2.blur(masked_image, (2,2))
+                contour, heirarchy = cv2.findContours(blurred_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+            contour_area = cv2.contourArea(contour[0])
+
+            return contour, contour_area   
+        
+        except:
+            return [-1], -1
 
     def printPath(self, path):
         try:
