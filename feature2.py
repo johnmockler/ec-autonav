@@ -51,9 +51,9 @@ map_image = cv2.imread(MAP,1)
 hsv_img = cv2.cvtColor(map_image, cv2.COLOR_BGR2HSV)
 map_threshed = cv2.cvtColor(map_image, cv2.COLOR_BGR2HSV)
 #map_mask = cv2.inRange(map_threshed, TRAFFIC_MIN1, TRAFFIC_MAX1)
-map_mask = cv2.inRange(map_threshed, RED_LINE_MIN, RED_LINE_MAX)
+map_mask = cv2.inRange(map_threshed, TRAFFIC_MIN1, TRAFFIC_MAX1)
 
-corners = cv2.goodFeaturesToTrack(map_mask,500,0.5,10)
+corners = cv2.goodFeaturesToTrack(map_mask,500,0.02,10)
 corners = np.int0(corners)
 np.sort(corners,axis=1)
 
@@ -76,11 +76,11 @@ def capture(x,y,num,img):
     y1 = y - l
     y2 = y + l
     arrow_img = img[y1:y2,x1:x2]
-    arrow_img = (255-arrow_img)
-    #arrow_threshed = cv2.cvtColor(arrow_img, cv2.COLOR_BGR2HSV)
-    #arrow_mask = cv2.inRange(arrow_threshed, RED_LINE_MIN, RED_LINE_MAX)
+    #arrow_img = (255-arrow_img)
+    arrow_threshed = cv2.cvtColor(arrow_img, cv2.COLOR_BGR2HSV)
+    arrow_mask = cv2.inRange(arrow_threshed, TRAFFIC_MIN1, TRAFFIC_MAX1)
     #arrow_gray = cv2.cvtColor(arrow_mask, cv2.COLOR_BGR2GRAY)
-    cv2.imwrite('/home/john/Pictures/Others trainingset1/'+str(num)+'.png', arrow_img)
+    cv2.imwrite('/home/john/Pictures/Others trainingset2/'+str(num)+'.png', arrow_mask)
 
 def findArrows(array):
 
@@ -168,27 +168,27 @@ def findObstacle():
         capture(cx,cy,num,mask)
         num += 1
 
-findObstacle()
-# num = 1
-# for i in corners:
+#findObstacle()
+num = 1
+for i in corners:
 
-# x,y = i.ravel()
-# #print(x)
-# #print(y)
-# #capture(x,y,num, map_image)
-# #num += 1
-# arrow = ArrowObj.ArrowPair(x,y)
-# arrows.append(arrow)
-# #print(str(x) + ','+ str(y))
+    x,y = i.ravel()
+    #print(x)
+    #print(y)
+    #capture(x,y,num, map_image)
+    #num += 1
+    arrow = ArrowObj.ArrowPair(x,y)
+    arrows.append(arrow)
+    #print(str(x) + ','+ str(y))
 
-# #cv2.circle(map_image,(x,y),3,255,-1)
+    #cv2.circle(map_image,(x,y),3,255,-1)
 
-# for arr in arrows:
-# try:
-#     capture(arr.x,arr.y,num)
-#     num +=1
-# except:
-#     num = num
+for arr in arrows:
+    try:
+        capture(arr.x,arr.y,num,map_image)
+        num +=1
+    except:
+        num = num
 
 #paired, unpaired = findArrows(arrows) 
 #print(paired)
