@@ -53,14 +53,42 @@ map_threshed = cv2.cvtColor(map_image, cv2.COLOR_BGR2HSV)
 #map_mask = cv2.inRange(map_threshed, TRAFFIC_MIN1, TRAFFIC_MAX1)
 map_mask = cv2.inRange(map_threshed, TRAFFIC_MIN1, TRAFFIC_MAX1)
 
-corners = cv2.goodFeaturesToTrack(map_mask,500,0.02,10)
-corners = np.int0(corners)
-np.sort(corners,axis=1)
+#corners = cv2.goodFeaturesToTrack(map_mask,500,0.02,10)
+#corners = np.int0(corners)
+#np.sort(corners,axis=1)
+
+def detectArrows(mask):
+    #pre-process map before input to function  
+    corners = cv2.goodFeaturesToTrack(mask,500,0.02,10)
+    corners = np.int0(corners)
+    arrows = []
+
+    for i in corners:
+        xi,yi = i.ravel()
+        arrow = Arro
+        arrow = ArrowObj.ArrowObject(xi,yi)
+        arrows.append(arrow)
+
+    for i in arrows:
+        for j in arrows:
+            if i.
 
 
-def distance(point1, point2):
-    d = m.sqrt((point1.x-point2.x)**2 + (point1.y-point2.y)**2)
+ 
+
+
+    #corners are probably arrows
+
+
+def distance(x1,y1, x2,y2):
+    d = m.sqrt((x1-x2)**2 + (y1-y2)**2)
     return d
+
+def direction(x1,y1,x2,y2):
+    dx = x1 - x2
+    dy = y1 - y2
+    theta = m.asin(dy/dx)
+    return theta
 
 #pairs items in an array based on their closest neighbor match closest neighbor then kick out if another is closers. for ones without pairs 
 def midpoint(x1,x2, y1, y2):
