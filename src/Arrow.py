@@ -17,16 +17,3 @@ class Arrow:
     
     def __repr__(self):
         return 'Item({}, {}, {}, {}, {},{})'.format(self.coords[0], self.coords[1], self.next_node, self.prev_node, self.fwd_dir, self.bwd_dir)
-    
- 
-class Path:
-
-    def __init__(self):
-        self.path_list = ()
-        self.deviation = 0
-    
-    def add_arrow(self, arrow):
-        self.path_list.append(arrow)
-
-    
-
