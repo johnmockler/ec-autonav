@@ -3,12 +3,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 import math as m
 from include import kdtree
-from src import Arrow
+import Arrow
 import random
 
-#MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\ENC_test.png'
+MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\ENC_test.png'
 
-MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\simpleTest.png'
+#MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\simpleTest.png'
 TRAFFIC_MIN1 = np.array([150, 10, 10])
 TRAFFIC_MAX1 = np.array([151, 200, 255])
 
@@ -20,8 +20,9 @@ map_mask = cv2.inRange(map_threshed, TRAFFIC_MIN1, TRAFFIC_MAX1)
 
 
 def detectArrows(mask):
+    CORNER_THRESHOLD = 0.5
     #pre-process map before input to function  
-    corners = cv2.goodFeaturesToTrack(mask,500,0.6,10)
+    corners = cv2.goodFeaturesToTrack(mask,500,CORNER_THRESHOLD,10)
     corners = np.int0(corners)
     arrows = []
 
@@ -29,9 +30,12 @@ def detectArrows(mask):
         x,y = i.ravel()
         arrow = Arrow.Arrow(x,y)
         arrows.append(arrow)
-        cv2.circle(map_image, (x,y),3,255,-1)
+        #cv2.circle(map_image, (x,y),3,255,-1)
 
-
+    #checks to see if any points are close to each other, and assumes they are detecting the same one and merges it
+    arrows = group_arrows(arrows)
+    for arrow in arrows:
+        cv2.circle(map_image,arrow.coords,3,255,-1 )
     #create kd tree of arrow objects
     #reference arrow object from search: tree.search_nn([1, 2])[0].data.next_node
     arrow_tree = kdtree.create(arrows)
@@ -40,10 +44,38 @@ def detectArrows(mask):
     random.shuffle(arrows)
     return arrows,arrow_tree
 
+def group_arrows(arrows):
+    MIN_DISTANCE = 17.0
+
+    for arrow in arrows:
+        for next_arrow in arrows:
+            dist = distance(arrow.coords, next_arrow.coords)
+            if dist != 0 and dist < MIN_DISTANCE:
+                arrow.coords = midpoint(arrow.coords,next_arrow.coords)
+                arrows.remove(next_arrow)
+    print(len(arrows))
+    return arrows
+
+def distance(pt1,pt2):
+    d = m.sqrt((pt1[0]-pt2[0])**2 + (pt1[1]-pt2[1])**2)
+    return d
+
+def midpoint(pt1,pt2):
+    x = (pt1[0] - pt2[0])/2
+    y = (pt1[1] - pt2[1])/2
+    x = int(x + pt2[0])
+    y = int(y + pt2[1])
+    return (x,y)
+
 def tree_search(node, tree, direct=None, layer=1):
     MAX_ANGLE = m.pi/16.0
     #MAX_ANGLE = 1000
+<<<<<<< Updated upstream:ArrowSearchTest.py
     MAX_LAYER = 2
+=======
+    MAX_LAYER = 4
+    MAX_DISTANCE = 500.0
+>>>>>>> Stashed changes:src/Pathmatching.py
     best_path = []
     best_cost = 1000
     best_dir = 0
@@ -71,7 +103,7 @@ def tree_search(node, tree, direct=None, layer=1):
             #use node here or branch_node????
 
             #if there is a previous node, it tries to compare everything to "None.data"...
-            if branch_node[1] != 0 and branch_node[0].data.prev_node is None:
+            if (branch_node[1] != 0 or branch_node[1] > MAX_DISTANCE) and branch_node[0].data.prev_node is None:
 
                 branch_direct = direction(node.data.coords, branch_node[0].data.coords)
                 temp_path = [branch_node[0]]
@@ -127,7 +159,7 @@ def tree_search(node, tree, direct=None, layer=1):
         for branch_node in next_layer:
             temp_cost = 1000
         #consider allowing better nodes to replace...
-            if branch_node[1]!=0 and branch_node[0].data.prev_node is None:
+            if (branch_node[1] != 0 or branch_node[1] > MAX_DISTANCE) and branch_node[0].data.prev_node is None:
                 branch_direct = direction(node.data.coords,branch_node[0].data.coords)
                 #delta = branch_direct - direct
                 delta = angle_diff(branch_direct,direct)
@@ -397,9 +429,15 @@ def main():
                 cv2.line(map_image, (path[i].data.coords), (path[i+1].data.coords), (0, 255, 0), thickness=3, lineType=8)
                 count+=1
     for arrow in arrows:
+<<<<<<< Updated upstream:ArrowSearchTest.py
         if arrow.data.next_node == None:
             print('yes')
 
+=======
+        if arrow.data.next_node is not None:
+            cv2.line(map_image, (arrow.data.coords), (arrow.data.next_node.data.coords), (0, 255, 0), thickness=3, lineType=8)
+            
+>>>>>>> Stashed changes:src/Pathmatching.py
 
 
     plt.imshow(map_image),plt.show()
