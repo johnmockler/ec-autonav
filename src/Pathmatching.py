@@ -70,12 +70,8 @@ def midpoint(pt1,pt2):
 def tree_search(node, tree, direct=None, layer=1):
     MAX_ANGLE = m.pi/16.0
     #MAX_ANGLE = 1000
-<<<<<<< Updated upstream:ArrowSearchTest.py
-    MAX_LAYER = 2
-=======
     MAX_LAYER = 4
     MAX_DISTANCE = 500.0
->>>>>>> Stashed changes:src/Pathmatching.py
     best_path = []
     best_cost = 1000
     best_dir = 0
@@ -86,9 +82,9 @@ def tree_search(node, tree, direct=None, layer=1):
     if layer == 1:
         if node.data.prev_node is not None:
             direct = node.data.bwd_dir
-            pre_path = [node]
+            pre_path = [(node,0)]
         else:
-            pre_path = [node]
+            pre_path = [(node,0)]
 
         if node.data.next_node is not None:
             return best_cost,best_path
@@ -106,7 +102,7 @@ def tree_search(node, tree, direct=None, layer=1):
             if (branch_node[1] != 0 or branch_node[1] > MAX_DISTANCE) and branch_node[0].data.prev_node is None:
 
                 branch_direct = direction(node.data.coords, branch_node[0].data.coords)
-                temp_path = [branch_node[0]]
+                temp_path = [(branch_node[0],branch_direct)]
 
                 if direct is not None:
                     delta = angle_diff(branch_direct,direct)
@@ -146,13 +142,17 @@ def tree_search(node, tree, direct=None, layer=1):
                             best_cost = temp_cost
                             best_path = temp_path
                             best_dir = branch_direct
-
+    
         best_path = pre_path + best_path
 
-        node.data.next_node = branch_node[0]
-        branch_node[0].data.prev_node = node
-        node.data.fwd_dir = best_dir
-        branch_node[0].data.bwd_dir = best_dir
+        #WE SHOULD ONLY UPDATE THE NODES WITH NEXT NODE AND SUCH AT THE LAST LAYER...
+        if layer == 1:
+            for i in range(len(best_path)-1):
+                best_path[i][0].data.next_node = best_path[i+1][0]
+                best_path[i][0].data.fwd_dir = best_path[i+1][1]
+                best_path[i+1][0].data.prev_node = best_path[i][0]
+                best_path[i+1][0].data.bwd_dir = best_path[i+1][1]
+
         return best_cost, best_path
 
     else:
@@ -163,225 +163,31 @@ def tree_search(node, tree, direct=None, layer=1):
                 branch_direct = direction(node.data.coords,branch_node[0].data.coords)
                 #delta = branch_direct - direct
                 delta = angle_diff(branch_direct,direct)
-                temp_path = [branch_node[0]]
+                temp_path = [(branch_node[0],branch_direct)]
                 temp_cost = abs(delta)
 
                 if branch_node[0].data.next_node is None:
 
                     if temp_cost<best_cost and temp_cost<=MAX_ANGLE:
-                        best_path = temp_path
                         best_cost = temp_cost
                         best_dir = branch_direct
+                        best_path = temp_path
+                        
 
                 elif abs(branch_node[0].data.fwd_dir - branch_direct)<=MAX_ANGLE:
-                #elif check_path(branch_node[0].data,branch_direct):
                     if temp_cost<best_cost and temp_cost<=MAX_ANGLE:
                         best_path = temp_path
                         best_cost = temp_cost
                         best_dir = branch_direct
-        #ERROR IS HERE!!!
-        if len(best_path)>0:   
-            node.data.next_node = best_path[0]
-            best_path[0].data.prev_node = node
+
+        if len(best_path)>0 and layer == 1:   
+            node.data.next_node = best_path[0][0]
+            best_path[0][0].data.prev_node = node
             node.data.fwd_dir = best_dir
-            best_path[0].data.bwd_dir = best_dir
+            best_path[0][0].data.bwd_dir = best_dir
 
         best_path = pre_path + best_path
         return best_cost, best_path
-
-def tree_search2(arrows,arrow_tree):
-    MAX_ANGLE = m.pi/8.0
-    for root in arrows:
-        #check if it already has a next node
-        if root.data.next_node is None:
-            #high initial score
-            path_cost = 1000
-            path = []
-            direct = []
-            #search for the first 6 nearest neighbors to root node
-            first_layer = arrow_tree.search_knn(root.data.coords,5)
-
-            root_dir = None
-            
-
-            #check if root node already has a previous, if so use in calculation
-            if root.data.prev_node is not None: 
-                root_dir = root.data.bwd_dir
-        
-            
-            for first_node in first_layer:
-                #check if the first node is already linked to another or if the first node is actually the root.
-                try:
-                    if first_node[1]!=0 and first_node[0].data.prev_node==None:
-    
-                        first_dir = direction(root.data.coords, first_node[0].data.coords)
-
-                        if root_dir!=None:
-                            delta1 = first_dir-root_dir
-                        else:
-                            delta1 = None
-
-                        # #verify that the backward angle difference is not too great
-                        # try:
-                        #     if abs(first_dir - root_dir)>MAX_AN
-
-                        if (delta1!=None and abs(delta1)<=MAX_ANGLE) or delta1==None:
-                
-                            if first_node[0].data.next_node==None:
-                                second_layer = arrow_tree.search_knn(first_node[0].data.coords,6)
-
-                                for second_node in second_layer:
-                                    #make sure second node isnt already linked or if it was the first node, or if it was the original node
-                                    if second_node[0].data.prev_node==None and second_node[1]!=0 and second_node[0].data.coords!=root.data.coords:
-                                        second_dir = direction(first_node[0].data.coords,second_node[0].data.coords)
-                                        delta2 = second_dir-first_dir
-                                        if delta1 is not None:
-                                            temp_cost = mean(abs(delta2),abs(delta1))
-                                        else:
-                                            temp_cost = abs(delta2)
-                                        if temp_cost<abs(path_cost) and abs(delta2)<=MAX_ANGLE:
-                                            path = [root, first_node[0], second_node[0]]
-                                            #path = [root, first_node[0]]
-                                            path_cost=temp_cost
-                                            direct = (first_dir, second_dir)
-
-                                            third_layer = arrow_tree.search_knn(first_node[0].data.coords,6)
-                            else:
-                                
-                                second_dir = first_node[0].fwd_dir
-                                delta2 = second_dir-first_dir
-                                temp_cost = abs(delta2)+abs(delta1)
-                                print(temp_cost)
-                                if temp_cost<abs(path_cost) and abs(delta)<=MAX_ANGLE:
-                                    path = [root, first_node[0], first_node[0].next_node]
-                                    path_cost = temp_cost
-                                    #path = [root, first_node[0]]
-                                    direct = (first_dir, second_dir)
-                            
-
-                except:
-                    next  
-            
-            if len(path)==3:
-                root.data.next_node = path[1]
-                root.data.fwd_dir = direct[0]
-                path[1].data.prev_node = root
-                path[1].data.bwd_dir = direct[0]
-                path[1].data.next_node = path[2]
-                path[1].data.fwd_dir = direct[1]
-                path[2].data.prev_node = path[1]
-                path[2].data.bwd_dir = direct[1]
-                #print(root.data.coords)
-                #print(path[1].data.coords)
-                #print(path[2].data.coords)
-
-                #print(direct)
-                #print(direct[0]-direct[1])
-                try:
-                    print(path)
-                except:
-                    next
-                                    
-                cv2.line(map_image, (path[0].data.coords), (path[1].data.coords), (0, 255, 0), thickness=3, lineType=8)
-                
-                cv2.line(map_image, (path[1].data.coords), (path[2].data.coords), (0, 255, 0), thickness=3, lineType=8)
-    plt.imshow(map_image),plt.show()
-
-def tree_search1(arrows,arrow_tree):
-    MAX_ANGLE = m.pi/8.0
-    for root in arrows:
-        #check if it already has a next node
-        if root.data.next_node is None:
-            #high initial score
-            path_cost = 1000
-            path = []
-            direct = []
-            #search for the first 6 nearest neighbors to root node
-            first_layer = arrow_tree.search_knn(root.data.coords,5)
-
-            root_dir = None
-            
-
-            #check if root node already has a previous, if so use in calculation
-            if root.data.prev_node is not None: 
-                root_dir = root.data.bwd_dir
-        
-            
-            for first_node in first_layer:
-                #check if the first node is already linked to another or if the first node is actually the root.
-                try:
-                    if first_node[1]!=0 and first_node[0].data.prev_node==None:
-    
-                        first_dir = direction(root.data.coords, first_node[0].data.coords)
-
-                        if root_dir!=None:
-                            delta1 = first_dir-root_dir
-                        else:
-                            delta1 = None
-
-                        # #verify that the backward angle difference is not too great
-                        # try:
-                        #     if abs(first_dir - root_dir)>MAX_AN
-
-                        if (delta1!=None and abs(delta1)<=MAX_ANGLE) or delta1==None:
-                
-                            if first_node[0].data.next_node==None:
-                                second_layer = arrow_tree.search_knn(first_node[0].data.coords,6)
-
-                                for second_node in second_layer:
-                                    #make sure second node isnt already linked or if it was the first node, or if it was the original node
-                                    if second_node[0].data.prev_node==None and second_node[1]!=0 and second_node[0].data.coords!=root.data.coords:
-                                        second_dir = direction(first_node[0].data.coords,second_node[0].data.coords)
-                                        delta2 = second_dir-first_dir
-                                        if delta1 is not None:
-                                            temp_cost = mean(abs(delta2),abs(delta1))
-                                        else:
-                                            temp_cost = abs(delta2)
-                                        if temp_cost<abs(path_cost) and abs(delta2)<=MAX_ANGLE:
-                                            path = [root, first_node[0], second_node[0]]
-                                            #path = [root, first_node[0]]
-                                            path_cost=temp_cost
-                                            direct = (first_dir, second_dir)
-                            else:
-                                
-                                second_dir = first_node[0].fwd_dir
-                                delta2 = second_dir-first_dir
-                                temp_cost = abs(delta2)+abs(delta1)
-                                print(temp_cost)
-                                if temp_cost<abs(path_cost) and abs(delta)<=MAX_ANGLE:
-                                    path = [root, first_node[0], first_node[0].next_node]
-                                    path_cost = temp_cost
-                                    #path = [root, first_node[0]]
-                                    direct = (first_dir, second_dir)
-                            
-
-                except:
-                    next  
-            
-            if len(path)==3:
-                root.data.next_node = path[1]
-                root.data.fwd_dir = direct[0]
-                path[1].data.prev_node = root
-                path[1].data.bwd_dir = direct[0]
-                path[1].data.next_node = path[2]
-                path[1].data.fwd_dir = direct[1]
-                path[2].data.prev_node = path[1]
-                path[2].data.bwd_dir = direct[1]
-                #print(root.data.coords)
-                #print(path[1].data.coords)
-                #print(path[2].data.coords)
-
-                #print(direct)
-                #print(direct[0]-direct[1])
-                try:
-                    print(path)
-                except:
-                    next
-                                    
-                cv2.line(map_image, (path[0].data.coords), (path[1].data.coords), (0, 255, 0), thickness=3, lineType=8)
-                
-                cv2.line(map_image, (path[1].data.coords), (path[2].data.coords), (0, 255, 0), thickness=3, lineType=8)
-    plt.imshow(map_image),plt.show()
 
 def check_path(node, direct):
     MAX_ANGLE = m.pi/12.0
@@ -422,27 +228,21 @@ def main():
     count = 0
     for arrow in arrows:
         cost, path = tree_search(arrow,tree)
-        for i in range(len(path)):
-            if i<len(path)-1 and len(path)>1:
-                coord = path[i].data.coords
-                coord2 = path[i+1].data.coords
-                cv2.line(map_image, (path[i].data.coords), (path[i+1].data.coords), (0, 255, 0), thickness=3, lineType=8)
-                count+=1
-    for arrow in arrows:
-<<<<<<< Updated upstream:ArrowSearchTest.py
-        if arrow.data.next_node == None:
-            print('yes')
 
-=======
+
+    for arrow in arrows:
         if arrow.data.next_node is not None:
             cv2.line(map_image, (arrow.data.coords), (arrow.data.next_node.data.coords), (0, 255, 0), thickness=3, lineType=8)
             
->>>>>>> Stashed changes:src/Pathmatching.py
 
 
+
+    
+    
+    
+    
     plt.imshow(map_image),plt.show()
     #tree_search1(arrows,tree)
 
 
 main()
-
