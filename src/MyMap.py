@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
-import Arrow
+import ArrowPaths
 
 IMAGEPATH = '/home/john/Pictures/simpleTest.png'
 ARROW1 = '/home/john/Pictures/arrow_example.png'
