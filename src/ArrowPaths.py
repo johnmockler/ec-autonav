@@ -9,8 +9,8 @@ from matplotlib import pyplot as plt
 
 
 #MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\ENC_test.png'
-MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\simpleTest.png'
-#MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\slanted_line.png'
+#MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\simpleTest.png'
+MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\slanted_line.png'
 TRAFFIC_MIN1 = np.array([150, 10, 10])
 TRAFFIC_MAX1 = np.array([151, 200, 255])
 
@@ -57,13 +57,14 @@ class Arrow(MapObject):
     
 class Line(MapObject):
 
-    def __init__(self,x,y,direct):
+    def __init__(self,x,y,direct,segment):
         super().__init__(x,y)
         self.coords = (x,y)
         self.direct = direct
+        self.segment = segment
     
     def __repr__(self):
-        return 'Item({}, {}, {})'.format(self.coords[0], self.coords[1], self.direction)
+        return 'Item({}, {}, {}, {})'.format(self.coords[0], self.coords[1], self.direct,self.segment)
 
 class ArrowPath():
 
@@ -97,21 +98,16 @@ def line_detector():
 
     '''
     lineSet = []
-    arrowSet = []
-    height, width, channels = map_image.shape
-    blank_image = np.zeros((height,width,3),np.uint8)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (6,6))
+    
     kernel = np.ones((3,3),np.uint8)
 
-    minLineLength = 10
-    maxLineGap = 10000
     #circle finder stuff
     #https://www.pyimagesearch.com/2014/07/21/detecting-circles-images-using-opencv-hough-circles/
     #http://www.bmva.org/bmvc/1989/avc-89-029.pdf
     DP = 1
     MIN_DIST = 10
-    MAX_RADIUS = 50
-    ACCUMULATOR_THRESH = 20 #lower = more circles found
+    MAX_RADIUS = 40
+    ACCUMULATOR_THRESH = 15 #lower = more circles found
 
     
     xformed = cv2.morphologyEx(map_mask2, cv2.MORPH_CLOSE, kernel, iterations=1)
@@ -124,37 +120,38 @@ def line_detector():
 
     #BLOCK OOUT CIRCLES FIRST:
     circles = cv2.HoughCircles(erosion,cv2.HOUGH_GRADIENT,DP,MIN_DIST, param2=ACCUMULATOR_THRESH,maxRadius=MAX_RADIUS)
-    print(circles)
     
     if circles is not None:
         circles = np.uint16(np.around(circles))
         for i in circles[0,:]:
-            # draw the outer circle
+            # block out circles so they aren't detected as lines
             cv2.circle(erosion,(i[0],i[1]),i[2]+6,0,-1)
 
-            #cv2.circle(map_image,(i[0],i[1]),i[2],(0,255,0),2)
+            # cv2.circle(map_image,(i[0],i[1]),i[2],(0,255,0),2)
             # draw the center of the circle
             #cv2.circle(map_image,(i[0],i[1]),2,(0,0,255),3)
-        plt.imshow(erosion),plt.show()
+        # plt.imshow(map_image),plt.show()
     else:
         print('no circles found!')
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    
+    MINLENGTH = 10
 
 
-    lines = cv2.HoughLinesP(erosion,1,np.pi/180,25)# minLineLength,maxLineGap)
+    lines = cv2.HoughLinesP(erosion,1,np.pi/180,25, minLineLength=MINLENGTH)
+    print(len(lines))
     for line in lines:
         for x1, y1, x2, y2 in line:
             coords = midpoint((x1,y1),(x2,y2))
             direct = direction((x1,y1),(x2,y2))
-            newLine = Line(coords[0],coords[1],direct)
+            segment = ((x1,y1),(x2,y2))
+            newLine = Line(coords[0],coords[1],direct,segment)
+            #cv2.line(map_image, (segment[0]), (segment[1]), (0, 255, 0), thickness=3, lineType=8)  
             lineSet.append(newLine)
-            cv2.line(map_image,(x1,y1),(x2,y2),(0,0,255),2)
     lineSet = kdtree.create(lineSet)
     
-    plt.imshow(map_image),plt.show()
+    # plt.imshow(map_image),plt.show()
 
     return lineSet
     #plt.imshow(map_image),plt.show()
@@ -163,16 +160,63 @@ def line_detector():
 def process_arrows(arrows,lineSet):
 
     for arrow in arrows:
-        closest_line = lineSet.search_knn(arrow.data.coords, 1)
-        arrow_dir = direction(arrow.data.coords,closest_line[0][0].data.coords) - m.pi/2.0
+        nearbyLines = lineSet.search_knn(arrow.data.coords, 6)
+        closest_dist = 1000
+        for neighbor in nearbyLines:
+            neighbor_dist = abs(perpendicularDist(neighbor[0].data.segment[0], neighbor[0].data.segment[1], arrow.data.coords))
+
+            if m.isnan(neighbor_dist):
+                neighbor_dist = abs(distance(arrow.data.coords,neighbor[0].data.coords))
+
+            if neighbor_dist <= closest_dist:
+                closest_line = neighbor 
+                closest_dist = neighbor_dist
+
+
+
+        #CALCULATE DIRECTION
+        (xclose,yclose) = closestPoint(closest_line[0].data.segment[0], closest_line[0].data.segment[1], arrow.data.coords)
+        arrow_dir = direction(arrow.data.coords,(xclose,yclose)) - m.pi/2.0
+
+
+
+        arrow_dir = scale_angle(arrow_dir)
+
+
         arrow.data.fwd_dir = arrow_dir
-        print('arrow coord')
+
+        print('coords')
         print(arrow.data.coords)
-        print('arrow dir')
+        print('direction')
         print(arrow.data.fwd_dir)
 
-        cv2.circle(map_image,arrow.data.coords,3,255,-1)
+
+
+        if (arrow.data.fwd_dir > m.pi/2.0 and arrow.data.fwd_dir <= m.pi) or (arrow.data.fwd_dir < -m.pi/2.0 and arrow.data.fwd_dir >= -m.pi):
+            cv2.circle(map_image,arrow.data.coords,3,(255,0,0),-1)
+        
+        else:
+            cv2.circle(map_image,arrow.data.coords,3,(0,255,0),-1)
+
     plt.imshow(map_image),plt.show()
+
+def scale_angle(theta):
+    multiplier = int(theta/2)
+    if theta > m.pi:
+        theta = m.fmod(theta,m.pi)
+        if multiplier%2 != 0:
+            theta = -m.pi - theta
+        else:
+            theta = -theta
+    elif theta < -m.pi:
+        theta = m.fmod(theta,m.pi)
+
+        if multiplier%2 != 0:
+            theta = m.pi + theta
+
+        else:
+            theta = -theta
+    return theta
 
 def load_arrows(potential_arrows):
     '''Loads a list of potential arrows into a kd_tree for easy searching and returns as a list of KD_Node objects.
@@ -464,6 +508,26 @@ def cross_product(ptA, ptB, ptP):
     x_product = vx*y - vy*x
 
     return x_product
+
+def closestPoint(ptA, ptB, ptP):
+    #http://paulbourke.net/geometry/pointlineplane/
+
+    #rename for easier reading
+    x1, y1 = ptA[0],ptA[1]
+    x2, y2 = ptB[0],ptB[1]
+    x3, y3 = ptP[0],ptP[1]
+
+
+    unum = (x3-x1)*(x2-x1) + (y3 - y1)*(y2 - y1)
+    udenom = distance((x1,y1),(x2,y2))**2
+
+    u = unum/udenom
+
+    x = x1 + u*(x2-x1)
+    y = y1 + u*(y2-y1)
+
+    return (x,y)
+
 
 def perpendicularDist(ptA, ptB, ptP):
 
