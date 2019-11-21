@@ -8,28 +8,28 @@ from matplotlib import pyplot as plt
 
 
 
-
+#MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\ENC_test.png'
 MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\simpleTest.png'
+#MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\slanted_line.png'
 TRAFFIC_MIN1 = np.array([150, 10, 10])
 TRAFFIC_MAX1 = np.array([151, 200, 255])
+
+TRAFFIC_MIN2 = np.array([150, 200, 10])
+TRAFFIC_MAX2 = np.array([151, 255, 255])
 
 #process map
 map_image = cv2.imread(MAP,1)
 hsv_img = cv2.cvtColor(map_image, cv2.COLOR_BGR2HSV)
 map_threshed = cv2.cvtColor(map_image, cv2.COLOR_BGR2HSV)
 map_mask = cv2.inRange(map_threshed, TRAFFIC_MIN1, TRAFFIC_MAX1)
+map_mask2 = cv2.inRange(map_threshed, TRAFFIC_MIN2, TRAFFIC_MAX2)
+
 CORNER_THRESHOLD = 0.6
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-class Arrow:
-
-    def __init__(self, x, y, next_node=None, prev_node = None, fwd_dir = None, bwd_dir = None, line = None):
+class MapObject:
+    def __init__(self, x, y):
         self.coords = (x,y)
-        self.next_node = next_node
-        self.prev_node = prev_node
-        self.fwd_dir = fwd_dir
-        self.bwd_dir = bwd_dir
-        self.line = line
 
     def __len__(self):
         return len(self.coords)
@@ -38,9 +38,34 @@ class Arrow:
         return self.coords[i]
 
     def __repr__(self):
-        return 'Item({}, {}, {}, {}, {}, {}, {})'.format(self.coords[0], self.coords[1], self.next_node, self.prev_node, self.fwd_dir, self.bwd_dir, self.line)
+        return 'Item({}, {})'.format(self.coords[0], self.coords[1])
 
-class Line:
+class Arrow(MapObject):
+
+    def __init__(self, x, y, next_node=None, prev_node = None, fwd_dir = None, bwd_dir = None, line = None):
+        super().__init__(x,y)
+        self.coords = (x,y)
+        self.next_node = next_node
+        self.prev_node = prev_node
+        self.fwd_dir = fwd_dir
+        self.bwd_dir = bwd_dir
+        self.line = line
+
+
+    def __repr__(self):
+        return 'Item({}, {}, {}, {}, {}, {}, {})'.format(self.coords[0], self.coords[1], self.next_node, self.prev_node, self.fwd_dir, self.bwd_dir, self.line)
+    
+class Line(MapObject):
+
+    def __init__(self,x,y,direct):
+        super().__init__(x,y)
+        self.coords = (x,y)
+        self.direct = direct
+    
+    def __repr__(self):
+        return 'Item({}, {}, {})'.format(self.coords[0], self.coords[1], self.direction)
+
+class ArrowPath():
 
     def __init__(self):
         self.lineArray = []
@@ -66,7 +91,89 @@ class Line:
         self.name = 'Line ' + nameString
 
 
-#@loa
+
+def line_detector():
+    '''finds dark purple lines in image
+
+    '''
+    lineSet = []
+    arrowSet = []
+    height, width, channels = map_image.shape
+    blank_image = np.zeros((height,width,3),np.uint8)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (6,6))
+    kernel = np.ones((3,3),np.uint8)
+
+    minLineLength = 10
+    maxLineGap = 10000
+    #circle finder stuff
+    #https://www.pyimagesearch.com/2014/07/21/detecting-circles-images-using-opencv-hough-circles/
+    #http://www.bmva.org/bmvc/1989/avc-89-029.pdf
+    DP = 1
+    MIN_DIST = 10
+    MAX_RADIUS = 50
+    ACCUMULATOR_THRESH = 20 #lower = more circles found
+
+    
+    xformed = cv2.morphologyEx(map_mask2, cv2.MORPH_CLOSE, kernel, iterations=1)
+    #grayimg = cv2.cvtColor(map_mask, cv2.COLOR_BGR2GRAY)
+    dilation = cv2.dilate(map_mask2,kernel,iterations = 2)
+    erosion = cv2.erode(dilation,kernel,iterations = 1)
+
+    #plt.imshow(erosion),plt.show()
+
+
+    #BLOCK OOUT CIRCLES FIRST:
+    circles = cv2.HoughCircles(erosion,cv2.HOUGH_GRADIENT,DP,MIN_DIST, param2=ACCUMULATOR_THRESH,maxRadius=MAX_RADIUS)
+    print(circles)
+    
+    if circles is not None:
+        circles = np.uint16(np.around(circles))
+        for i in circles[0,:]:
+            # draw the outer circle
+            cv2.circle(erosion,(i[0],i[1]),i[2]+6,0,-1)
+
+            #cv2.circle(map_image,(i[0],i[1]),i[2],(0,255,0),2)
+            # draw the center of the circle
+            #cv2.circle(map_image,(i[0],i[1]),2,(0,0,255),3)
+        plt.imshow(erosion),plt.show()
+    else:
+        print('no circles found!')
+
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    
+
+
+    lines = cv2.HoughLinesP(erosion,1,np.pi/180,25)# minLineLength,maxLineGap)
+    for line in lines:
+        for x1, y1, x2, y2 in line:
+            coords = midpoint((x1,y1),(x2,y2))
+            direct = direction((x1,y1),(x2,y2))
+            newLine = Line(coords[0],coords[1],direct)
+            lineSet.append(newLine)
+            cv2.line(map_image,(x1,y1),(x2,y2),(0,0,255),2)
+    lineSet = kdtree.create(lineSet)
+    
+    plt.imshow(map_image),plt.show()
+
+    return lineSet
+    #plt.imshow(map_image),plt.show()
+
+
+def process_arrows(arrows,lineSet):
+
+    for arrow in arrows:
+        closest_line = lineSet.search_knn(arrow.data.coords, 1)
+        arrow_dir = direction(arrow.data.coords,closest_line[0][0].data.coords) - m.pi/2.0
+        arrow.data.fwd_dir = arrow_dir
+        print('arrow coord')
+        print(arrow.data.coords)
+        print('arrow dir')
+        print(arrow.data.fwd_dir)
+
+        cv2.circle(map_image,arrow.data.coords,3,255,-1)
+    plt.imshow(map_image),plt.show()
+
 def load_arrows(potential_arrows):
     '''Loads a list of potential arrows into a kd_tree for easy searching and returns as a list of KD_Node objects.
     The first element in the list is the root of the tree.
@@ -85,6 +192,7 @@ def load_arrows(potential_arrows):
     for i in potential_arrows:
         x,y = i.ravel()
         arrow = Arrow(x,y)
+
         arrows.append(arrow)
     
     arrows = filter_arrows(arrows)
@@ -92,6 +200,7 @@ def load_arrows(potential_arrows):
     arrows = list(arrow_tree.inorder())
 
     return arrows, arrow_tree
+
 
 def tree_search(node, tree, direct=None, layer=1):
     ''' Searches a node on a given tree and attempts to find a path which minimizes the angle between nodes. i.e. attempts to find 
@@ -110,7 +219,7 @@ def tree_search(node, tree, direct=None, layer=1):
     best path: a list of kd_node objects that make up the found path
     '''
 
-    MAX_ANGLE = m.pi/18.0
+    MAX_ANGLE = m.pi/14.0
     MAX_LAYER = 3
     MAX_DISTANCE = 4500.0
     COST_MODIF = 0.6
@@ -245,9 +354,16 @@ def filter_arrows(arrows):
             if dist != 0 and dist < MIN_DISTANCE:
                 arrow.coords = midpoint(arrow.coords,next_arrow.coords)
                 arrows.remove(next_arrow)
-    print(len(arrows))
+                cv2.circle(map_image,arrow.coords,3,255,-1)
+
+
     return arrows
-        
+
+
+
+
+
+
 def distance(pt1,pt2):
     '''calculates distance between two points
     Parameters
@@ -309,7 +425,7 @@ def group_lines(arrows):
         if arrow.data.line is None:
             prev = arrow.data.prev_node
             nxt = arrow.data.next_node
-            line = Line()
+            line = ArrowPath()
             arrowSet = [arrow]
             while prev is not None:
                 arrowSet.append(prev)
@@ -326,7 +442,7 @@ def group_lines(arrows):
 
     return arrows
 
-def left_or_right(ptA, ptB, ptP):
+def cross_product(ptA, ptB, ptP):
     '''calculates whether the point P  falls to the right of line segment AB.
     https://www.geeksforgeeks.org/direction-point-line-segment/
 
@@ -340,90 +456,99 @@ def left_or_right(ptA, ptB, ptP):
     side: 1 if right, -1 if left, 0 if it is on line segment
     '''
     #set A as origin
-    ptB[0] -= ptA[0]
-    ptB[1] -= ptA[1]
-    ptP[0] -= ptA[0]
-    ptP[1] -= ptA[1]
+    vx = ptB[0] - ptA[0]
+    vy = ptB[1] - ptA[1]
+    x = ptP[0] - ptA[0]
+    y = ptP[1] - ptA[1]
 
-    x_product = ptB[0]*ptP[1] - ptB[1]*ptP[0]
+    x_product = vx*y - vy*x
 
-    if x_product > 0:
-        side = 1
-    elif x_product <0:
-        side = -1
-    else:
-        side = 0
-    return side
+    return x_product
+
+def perpendicularDist(ptA, ptB, ptP):
+
+
+#https://www.intmath.com/plane-analytic-geometry/perpendicular-distance-point-line.php
+    #set A as origin
+    vx = ptB[0] - ptA[0]
+    vy = ptB[1] - ptA[1]
+
+    px = ptP[0] - ptA[0]
+    py = ptP[1] - ptA[1]
+
+    #put line segment B in ax + by = 0 form
+
+    #a = -y/x
+    a = - vy/vx
+    b = 1.0
+    m = px
+    n = py
+
+    num = abs(a*m + b*n)
+    denom = (a**2 + b**2)**0.5
+
+    return num/denom
 
 def determine_line_direction(arrow, tree):
-    MIN_ANGLE = m.pi/8.0
-    neighbors = search_knn(arrow, tree, 4)
-    neighbor_fwd = True
+
+    #how do we deal with edge cases? i.e. a line is incorrectly marked
+    MAX_ANGLE = m.pi/8.0
+    MIN_DISTANCE = 12.0
+    neighbors = tree.search_knn(arrow.data.coords, 4)
     arrow_fwd = True
+    
+    if arrow.data.line.direction is not None:
+        return 0
+
     for node in neighbors:
-        if node.data.line != arrow.data.line:
+        if node[0].data.line != arrow.data.line:
 
             ptA = arrow.data.coords
+            ptP = node[0].data.coords
             if arrow.data.next_node is not None:
                 ptB = arrow.data.next_node.data.coords
+                theta1 = arrow.data.fwd_dir
                 arrow_fwd = True
             elif arrow.data.prev_node is not None:
                 ptB = arrow.data.prev_node.data.coords
+                theta1 = arrow.data.bwd_dir
                 arrow_fwd = False
             else:
                 raise ValueError('Node is not connected to path')
+
+            if node[0].data.next_node is not None:
+                theta2 = node[0].data.fwd_dir
+            elif node[0].data.prev_node is not None:
+                theta2 = node[0].data.bwd_dir
+            else:
+                theta2 = None
             #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            
+            if theta2 is not None:
+                delta = angle_diff(theta1, theta2)
 
-            #make sure lines are not close to parallel
-            if True:
+            else:
+                delta = None
 
-                if left_or_right(ptA, ptB, ptP) <= 0 and arrow_fwd:
-                    arrow.data.line = 1
-                    if neighbor_fwd:
-                        node.data.line = 1
-                    else:
-                        node.data.line = -1
+            dist = perpendicularDist(ptA,ptB, ptP)
 
-                elif left_or_right(ptA, ptB, ptP) < 0 and arrow_fwd:
-                    arrow.data.line = -1 
-                    if neighbor_fwd:
-                        no
+            #check to make sure that the lines are close to parallel and that they are separate lanes
+            if dist > MIN_DISTANCE and (delta is None or delta < MAX_ANGLE):
 
+                if cross_product(ptA, ptB, ptP) <= 0 and arrow_fwd:
+                    arrow.data.line.set_direction(1)
+                elif cross_product(ptA, ptB, ptP) > 0 and arrow_fwd:
+                    arrow.data.line.set_direction(-1)
+                elif cross_product(ptA, ptB, ptP) <= 0 and not arrow_fwd:
+                    arrow.data.line.set_direction(-1)
+                elif cross_product(ptA, ptB, ptP) > 0 and not arrow_fwd:
+                    arrow.data.line.set_direction(1)
 
-
-                # if delta >= 0 and arrow_fwd:
-                #     if neighbor_fwd:
-                #         arrow.data.line = 1
-                #         node.data.line = 1
-                #     else:
-                #         arrow.data.line = 1
-                #         node.data.line = -1
-                # elif delta >= 0 and not arrow_fwd:
-                #     if neighbor_fwd:
-                #         arrow.data.line = -1
-                #         node.data.line = -1
-                #     else:
-                #         arrow.data.line = -1
-                #         node.data.line = 1
-                # elif delta <= 0 and arrow_fwd:
-                #     if neighbor_fwd:
-                #         arrow.data.line = -1
-                #         node.data.line = -1
-                #     else:
-                #         arrow.data.line = -1
-                #         node.data.line = 1   
-                # elif delta <= 0 and not arrow_fwd:
-                #     if neighbor_fwd:
-                #         arrow.data.line = -1
-                #         node.data.line = -1
-                #     else:
-                #         arrow.data.line = -1
-                #         node.data.line = 1   
-            return  
+                return 0
 
 def set_line_directions(arrows,tree):
     for arrow in arrows:
-        if arrow.data.line is None:
+        if arrow.data.line is not None:
             try:
                 determine_line_direction(arrow,tree)
             except ValueError:
@@ -432,15 +557,25 @@ def set_line_directions(arrows,tree):
 if __name__ == "__main__":
     corners = cv2.goodFeaturesToTrack(map_mask,500,CORNER_THRESHOLD,10)
     corners = np.int0(corners)
+    lineSet = line_detector()
+    arrows, arrow_tree = load_arrows(corners)
+    process_arrows(arrows,lineSet)
 
-    arrows, tree = load_arrows(corners)
-    for arrow in arrows:
-        cost, path = tree_search(arrow,tree)
+    # arrows, tree = load_arrows(corners)
+    # for arrow in arrows:
+    #     cost, path = tree_search(arrow,tree)
 
 
-    arrows = group_lines(arrows)
+    # arrows = group_lines(arrows)
+    # set_line_directions(arrows,tree)
 
     # for arrow in arrows:
+    #     print('coords')
+    #     print(arrow.data.coords)
     #     if arrow.data.next_node is not None:
+    #         print('fwd dir')
+    #         print(arrow.data.fwd_dir)
+    #         print(arrow.data.line.name)
+    #         print('line dir')
+    #         print(arrow.data.line.direction)
     #         cv2.line(map_image, (arrow.data.coords), (arrow.data.next_node.data.coords), (0, 255, 0), thickness=3, lineType=8)    
-    plt.imshow(map_image),plt.show()
