@@ -8,9 +8,10 @@ from matplotlib import pyplot as plt
 
 
 
-#MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\ENC_test.png'
+MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\ENC_test.png'
 #MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\simpleTest.png'
-MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\slanted_line.png'
+#MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\slanted_line.png'
+#MAP = r'C:\Users\jmock\Documents\Projekt Arbeit Images\trouble_region.png'
 TRAFFIC_MIN1 = np.array([150, 10, 10])
 TRAFFIC_MAX1 = np.array([151, 200, 255])
 
@@ -24,7 +25,7 @@ map_threshed = cv2.cvtColor(map_image, cv2.COLOR_BGR2HSV)
 map_mask = cv2.inRange(map_threshed, TRAFFIC_MIN1, TRAFFIC_MAX1)
 map_mask2 = cv2.inRange(map_threshed, TRAFFIC_MIN2, TRAFFIC_MAX2)
 
-CORNER_THRESHOLD = 0.6
+CORNER_THRESHOLD = 0.6 #0.6 for smaller images 0.5 for larger
 #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 class MapObject:
@@ -99,7 +100,7 @@ def line_detector():
     '''
     lineSet = []
     
-    kernel = np.ones((3,3),np.uint8)
+    kernel = np.ones((4,4),np.uint8)
 
     #circle finder stuff
     #https://www.pyimagesearch.com/2014/07/21/detecting-circles-images-using-opencv-hough-circles/
@@ -115,7 +116,7 @@ def line_detector():
     dilation = cv2.dilate(map_mask2,kernel,iterations = 2)
     erosion = cv2.erode(dilation,kernel,iterations = 1)
 
-    #plt.imshow(erosion),plt.show()
+    plt.imshow(erosion),plt.show()
 
 
     #BLOCK OOUT CIRCLES FIRST:
@@ -135,19 +136,20 @@ def line_detector():
         print('no circles found!')
 
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+    RHO_RES = 1
+    THETA_RES = np.pi/180
+    THRESHOLD = 25 #lower = more lines default = 25
     MINLENGTH = 10
 
 
-    lines = cv2.HoughLinesP(erosion,1,np.pi/180,25, minLineLength=MINLENGTH)
-    print(len(lines))
+    lines = cv2.HoughLinesP(erosion,RHO_RES,THETA_RES,THRESHOLD, minLineLength=MINLENGTH)
     for line in lines:
         for x1, y1, x2, y2 in line:
             coords = midpoint((x1,y1),(x2,y2))
             direct = direction((x1,y1),(x2,y2))
             segment = ((x1,y1),(x2,y2))
             newLine = Line(coords[0],coords[1],direct,segment)
-            #cv2.line(map_image, (segment[0]), (segment[1]), (0, 255, 0), thickness=3, lineType=8)  
+            cv2.line(map_image, (segment[0]), (segment[1]), (0, 255, 0), thickness=3, lineType=8)  
             lineSet.append(newLine)
     lineSet = kdtree.create(lineSet)
     
