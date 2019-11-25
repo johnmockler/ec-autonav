@@ -120,7 +120,6 @@ class MyMap():
         # cv2.drawContours(obstacle_image, land_contour, -1, (0,255,0), -1)
         # cv2.drawContours(obstacle_image, shallow_contour, -1, (0,255,0), -1)    
 
-
         traffic_mask_dark = cv2.inRange(hsv_img, TRAFFIC_MIN2, TRAFFIC_MAX2)
         traffic_mask_light = cv2.inRange(hsv_img, TRAFFIC_MIN1, TRAFFIC_MAX1)
 

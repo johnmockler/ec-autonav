@@ -103,8 +103,6 @@ def astar(map_obj, maze, start, end):
 
 
 def main():
-
-
     map_obj = MapHandler.MyMap()
     #maze.isObstacle(785,34)
     maze = map_obj.get_map()
