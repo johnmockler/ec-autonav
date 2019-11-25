@@ -1,7 +1,7 @@
 #https://medium.com/@nicholas.w.swift/easy-a-star-pathfinding-7e6689c7f7b2
 
 import numpy as np
-import MyMap
+import MapHandler
 
 class Node():
     """A node class for A* Pathfinding"""
@@ -18,7 +18,7 @@ class Node():
         return self.position == other.position
 
 
-def astar(maze, start, end):
+def astar(map_obj, maze, start, end):
     """Returns a list of tuples as a path from the given start to the given end in the given maze"""
 
     # Create start and end node
@@ -66,11 +66,12 @@ def astar(maze, start, end):
             node_position = (current_node.position[0] + new_position[0], current_node.position[1] + new_position[1])
 
             # Make sure within range
-            if node_position[0] > (len(maze.map) - 1) or node_position[0] < 0 or node_position[1] > (len(maze.map[len(maze.map)-1]) -1) or node_position[1] < 0:
+            if node_position[0] > (len(maze) - 1) or node_position[0] < 0 or node_position[1] > (len(maze[len(maze)-1]) -1) or node_position[1] < 0:
                 continue
 
             # Make sure walkable terrain
-            if maze.isObstacle(node_position[0], node_position[1]) != 0:
+            #if map_obj.is_obstacle(node_position[0], node_position[1]) != 0:
+            if maze[node_position[0],node_position[1]] != 0:
                 continue
 
             # Create new node
@@ -104,16 +105,19 @@ def astar(maze, start, end):
 def main():
 
 
-    maze = MyMap.MyMap()
-    maze.loadMap()
+    map_obj = MapHandler.MyMap()
     #maze.isObstacle(785,34)
-
+    maze = map_obj.get_map()
     #x and y are flipped
-    start = (52,447)
-    end = (427,243)
+    #start = (52,447)
+    #end = (600,500)
 
-    path = astar(maze, start, end)
-    maze.printPath(path)
+    points = map_obj.query_point()
+
+    start = (points[0].y,points[0].x)
+    end = (points[1].y,points[1].x)
+    path = astar(map_obj, maze, start, end)
+    map_obj.print_path(path)
 
 
 if __name__ == '__main__':
