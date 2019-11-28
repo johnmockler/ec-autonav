@@ -125,13 +125,13 @@ class MyMap():
 
 
         line_set = self.detect_lines(traffic_mask_dark)
-        self.arrows, arrow_tree = self.detect_arrows(traffic_mask_light)
+        self.arrows, self.root_arrow = self.detect_arrows(traffic_mask_light)
         self.process_arrows(self.arrows, line_set)
 
         return 0
 
     def detect_arrows(self, mask):
-        CORNER_THRESHOLD = 0.6
+        CORNER_THRESHOLD = 0.5
         arrows = []
         corners = cv2.goodFeaturesToTrack(mask,500,CORNER_THRESHOLD,10)
         corners = np.int0(corners)
@@ -140,12 +140,13 @@ class MyMap():
             x,y = i.ravel()
             coords = pt.Point(x,y)
             arrows.append(obj.Arrow(coords))
+
     
         arrows = self.filter_arrows(arrows)
-        arrow_tree = kdtree.create(arrows)
-        arrows = list(arrow_tree.inorder())
+        root_arrow = kdtree.create(arrows)
+        arrows = list(root_arrow.inorder())
 
-        return arrows, arrow_tree
+        return arrows, root_arrow
 
         
     def detect_lines(self, mask):
@@ -159,23 +160,25 @@ class MyMap():
         #circle finder stuff
         #https://www.pyimagesearch.com/2014/07/21/detecting-circles-images-using-opencv-hough-circles/
         #http://www.bmva.org/bmvc/1989/avc-89-029.pdf
-        DP = 1
-        MIN_DIST = 10
-        MAX_RADIUS = 40
-        ACCUMULATOR_THRESH = 15 #lower = more circles found
+        DP = 1 #DEFAULT = 1
+        MIN_DIST = 10 # DEFAULT = 10
+        MAX_RADIUS = 30 # DEFAULT = 40
+        ACCUMULATOR_THRESH = 14 #lower = more circles found DEFAULT = 15
 
         
         xformed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
         #grayimg = cv2.cvtColor(map_mask, cv2.COLOR_BGR2GRAY)
-        dilation = cv2.dilate(mask,kernel,iterations = 2)
+        dilation = cv2.dilate(mask,kernel,iterations = 1)
         erosion = cv2.erode(dilation,kernel,iterations = 1)
 
+        #cv2.imshow('erosion', erosion)
         #BLOCK OUT CIRCLES FIRST:
         circles = cv2.HoughCircles(erosion,cv2.HOUGH_GRADIENT,DP,MIN_DIST, param2=ACCUMULATOR_THRESH,maxRadius=MAX_RADIUS)
         
         if circles is not None:
             circles = np.uint16(np.around(circles))
             for i in circles[0,:]:
+                #cv2.circle(self.image,(i[0],i[1]),i[2],(0,255,0),2)
                 cv2.circle(erosion,(i[0],i[1]),i[2]+6,0,-1)
         else:
             print('no circles found!')
@@ -199,6 +202,7 @@ class MyMap():
                 lineSet.append(newLine)
         lineSet = kdtree.create(lineSet)
         
+
         return lineSet
     
     
@@ -223,6 +227,12 @@ class MyMap():
 
             arrow_dir = pt.scale_angle(arrow_dir)
 
+            x = 10 * m.cos(arrow_dir) + arrow.data.coords.x
+            y = 10 * m.sin(arrow_dir) + arrow.data.coords.y
+
+
+            cv2.line(self.image, (int(x),int(y)), (arrow.data.coords.x,arrow.data.coords.y), (0,255,0),1)
+            cv2.circle(self.image,(arrow.data.coords.x,arrow.data.coords.y),1,(255,0,0),-1)  
             arrow.data.direction = arrow_dir
 
     def process_obstacles(self, contour_array):
@@ -295,13 +305,30 @@ class MyMap():
         return gui.points
 
 
-
-
+    def show_obstacles(self):
+        return 0
+    
+    def show_arrows(self):
+        return 0
+    
+    def show_arrow_directions(self):
+        return 0
+    
+    def show_map(self):
+        plt.imshow(self.image, cmap='gray')
+        plt.show()
     def print_path(self, path):
         try:
-            for coord in path:
-                self.image[coord[0], coord[1]] = [255, 0, 0]
-
+            for i in range(len(path)):
+                if i == 0:
+                    cv2.circle(self.image,(path[i][1],path[i][0]),3,(0,255,0),-1)
+                elif i == len(path) - 1:
+                    cv2.circle(self.image,(path[i][1],path[i][0]),3,(0,0,255),-1)
+                else:
+                    cv2.circle(self.image,(path[i][1],path[i][0]),1,(255,0,0),-1)
+            #for coord in path:
+                #self.image[coord[0], coord[1]] = [255, 0, 0]
+                #cv2.circle(self.image,(coord[1],coord[0]),1,(255,0,0),-1)  
             plt.imshow(self.image, cmap='gray')
             plt.title('Edge Image'), plt.xticks([]), plt.yticks([])
             plt.show()

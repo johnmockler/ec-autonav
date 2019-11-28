@@ -2,6 +2,9 @@
 
 import numpy as np
 import MapHandler
+import PointHandler as pt
+from include import kdtree
+import math as m
 
 class Node():
     """A node class for A* Pathfinding"""
@@ -12,6 +15,7 @@ class Node():
 
         self.g = 0
         self.h = 0
+        self.k = 0
         self.f = 0
 
     def __eq__(self, other):
@@ -91,7 +95,47 @@ def astar(map_obj, maze, start, end):
             # Create the f, g, and h values
             child.g = current_node.g + 1
             child.h = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
-            child.f = child.g + child.h
+            
+            print(child.h)
+            #configure cost function k 
+            ARROW_MODIF = .03
+            DIST_MODIF = 10
+            MAX_DIST = 10000
+            arrow_dist = map_obj.root_arrow.search_knn((child.position[1],child.position[0]),5)
+            modified_dist = []
+
+            #for arrow in arrow_dist:
+            #    dist = pt.distance(arrow[0].data.coords, pt.Point(child.position[1],child.position[0]))
+            #    modified_dist.append(dist**2*arrow[1]/16.0)
+
+
+            # don't mess with this algorithm. it works and I don't know why...
+            direct2node = pt.direction(pt.Point(child.position[1],child.position[0]), pt.Point(end_node.position[1],end_node.position[0]))
+            for arrow in arrow_dist:
+
+
+                if pt.is_same_halfplane(direct2node, arrow[0].data.direction):
+                    print('arrow coord')
+                    print(arrow[0].data.coords.x)
+                    print('arrow dir')
+                    print(arrow[0].data.direction)
+                    print('direction2end')
+                    print(direct2node)
+                    next_arrow_dist = arrow[1]
+                    break
+                else:
+                    next_arrow_dist = 0
+
+
+            if next_arrow_dist < MAX_DIST:
+                child.k = (next_arrow_dist * child.h**0.5)*ARROW_MODIF
+            else:
+                child.k = 0
+
+            
+            child.f = child.g + child.h + child.k
+
+
 
             # Child is already in the open list
             for open_node in open_list:
@@ -109,6 +153,7 @@ def main():
     #x and y are flipped
     #start = (52,447)
     #end = (600,500)
+
 
     points = map_obj.query_point()
 

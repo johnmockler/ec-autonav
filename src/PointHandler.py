@@ -9,6 +9,10 @@ class Point:
     def __len__(self):
         return 2
     
+    def __repr__(self):
+        return (self.x, self.y)
+    
+    
     
 def distance(pt1,pt2):
     '''calculates distance between two points
@@ -130,3 +134,24 @@ def scale_angle(theta):
         else:
             theta = -theta
     return theta
+
+def add_angle(theta1, theta2):
+    angle_sum = theta1 + theta2
+
+    if angle_sum > m.pi:
+        diff = angle_sum - m.pi
+        angle_sum = -m.pi + diff
+    elif angle_sum < -m.pi:
+        diff = angle_sum + m.pi
+        angle_sum = m.pi + diff
+    
+    return angle_sum
+
+def is_same_halfplane(theta1, theta2):
+
+    diff = add_angle(theta1,theta2)
+
+    if abs(diff) < m.pi/2:
+        return True
+    else:
+        return False
