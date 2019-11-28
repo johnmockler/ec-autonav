@@ -31,6 +31,8 @@ def astar(map_obj, maze, start, end):
     end_node = Node(None, end)
     end_node.g = end_node.h = end_node.f = 0
 
+    goal_node = Node(None, end)
+
     # Initialize both open and closed list
     open_list = []
     closed_list = []
@@ -97,30 +99,34 @@ def astar(map_obj, maze, start, end):
             child.h = ((child.position[0] - end_node.position[0]) ** 2) + ((child.position[1] - end_node.position[1]) ** 2)
             
             print(child.h)
-            #configure cost function k 
-            ARROW_MODIF = .03
+
+
+
+            ''' Modified Heuristic Algorithm
+            1. find closest 5 arrows
+            2. for each arrow, from closest to furthest:
+                a. if the arrow points in roughly the same direction (the arrow points within 90 degrees on either side), this is the "next arrow"
+                b. record its distance and break loop
+            3. Check if the closest arrow is close enough
+                a. if not, use normal heuristic
+                b. if so, use modified heuristic:
+                    i. h(n)' = (arrow_distance*Modifier + h(n)^2)*h(n)
+                    this heuristic lowers as you get closer to the end, and is 0 when you are at the end
+                    (i.e. shouldn't get trapped between arrow and endpoint)
+
+
+
+            '''
+            ARROW_MODIF = 3
             DIST_MODIF = 10
-            MAX_DIST = 10000
+            MAX_DIST = 4000
             arrow_dist = map_obj.root_arrow.search_knn((child.position[1],child.position[0]),5)
-            modified_dist = []
 
-            #for arrow in arrow_dist:
-            #    dist = pt.distance(arrow[0].data.coords, pt.Point(child.position[1],child.position[0]))
-            #    modified_dist.append(dist**2*arrow[1]/16.0)
-
-
-            # don't mess with this algorithm. it works and I don't know why...
             direct2node = pt.direction(pt.Point(child.position[1],child.position[0]), pt.Point(end_node.position[1],end_node.position[0]))
             for arrow in arrow_dist:
 
-
                 if pt.is_same_halfplane(direct2node, arrow[0].data.direction):
-                    print('arrow coord')
-                    print(arrow[0].data.coords.x)
-                    print('arrow dir')
-                    print(arrow[0].data.direction)
-                    print('direction2end')
-                    print(direct2node)
+
                     next_arrow_dist = arrow[1]
                     break
                 else:
@@ -128,12 +134,17 @@ def astar(map_obj, maze, start, end):
 
 
             if next_arrow_dist < MAX_DIST:
-                child.k = (next_arrow_dist * child.h**0.5)*ARROW_MODIF
-            else:
-                child.k = 0
+                child.h = (next_arrow_dist*ARROW_MODIF + child.h)*child.h**0.5
+                #child.k = (next_arrow_dist * child.h**0.5)*ARROW_MODIF
+
+
+            #---------------------------------------------------------------
+
+            goal_node.position = ()
+
 
             
-            child.f = child.g + child.h + child.k
+            child.f = child.g + child.h
 
 
 
