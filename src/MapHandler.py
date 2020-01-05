@@ -52,7 +52,7 @@ YELLOW_BUOY_MAX = np.array([27, 255, 255])
 
 class MyMap():
 
-    def __init__(self, impath=r'C:\Users\jmock\Documents\Projekt Arbeit Images\opencvtest.png', offset=(0, 0)):
+    def __init__(self, impath=r'C:\Users\jmock\Documents\Projekt Arbeit Images\ENC_test2.png', offset=(0, 0)):
         self.impath = impath
         self.offset = offset
         self.image = cv2.imread(impath, 1)
@@ -119,30 +119,38 @@ class MyMap():
         #     cv2.circle(self.obstacle_image,(obst.data.coords.x,obst.data.coords.y),int(obst.data.radius),(0,255,0),-1)
         # cv2.drawContours(obstacle_image, land_contour, -1, (0,255,0), -1)
         # cv2.drawContours(obstacle_image, shallow_contour, -1, (0,255,0), -1)    
+        self.traffic_mask_dark = cv2.inRange(hsv_img, TRAFFIC_MIN2, TRAFFIC_MAX2)
+        self.traffic_mask_light = cv2.inRange(hsv_img, TRAFFIC_MIN1, TRAFFIC_MAX1)
 
-        traffic_mask_dark = cv2.inRange(hsv_img, TRAFFIC_MIN2, TRAFFIC_MAX2)
-        traffic_mask_light = cv2.inRange(hsv_img, TRAFFIC_MIN1, TRAFFIC_MAX1)
 
-
-        line_set = self.detect_lines(traffic_mask_dark)
-        self.arrows, self.root_arrow = self.detect_arrows(traffic_mask_light)
+        line_set = self.detect_lines(self.traffic_mask_dark)
+        self.arrows, self.root_arrow = self.detect_arrows(self.traffic_mask_light)
         self.process_arrows(self.arrows, line_set)
 
         return 0
 
     def detect_arrows(self, mask):
-        CORNER_THRESHOLD = 0.5
+        CORNER_THRESHOLD = 0.2 #0.5 for large image, 0.6 for smaller; 0.2 for harris
         arrows = []
-        corners = cv2.goodFeaturesToTrack(mask,500,CORNER_THRESHOLD,10)
+        corners = cv2.goodFeaturesToTrack(mask,500,CORNER_THRESHOLD,10, useHarrisDetector=True)
+        #print(corners)
         corners = np.int0(corners)
+
+        #REMOVE THIS LATER
+        self.traffic_mask_light = cv2.cvtColor(self.traffic_mask_light, cv2.COLOR_GRAY2RGB)
+
+        #----------------
 
         for i in corners:
             x,y = i.ravel()
             coords = pt.Point(x,y)
             arrows.append(obj.Arrow(coords))
-
+            #cv2.circle(self.image,(x,y),2,(255,0,0),-1)
+            
     
         arrows = self.filter_arrows(arrows)
+
+
         root_arrow = kdtree.create(arrows)
         arrows = list(root_arrow.inorder())
 
@@ -156,32 +164,35 @@ class MyMap():
         lineSet = []
         
         kernel = np.ones((4,4),np.uint8)
-
         #circle finder stuff
         #https://www.pyimagesearch.com/2014/07/21/detecting-circles-images-using-opencv-hough-circles/
         #http://www.bmva.org/bmvc/1989/avc-89-029.pdf
         DP = 1 #DEFAULT = 1
-        MIN_DIST = 10 # DEFAULT = 10
-        MAX_RADIUS = 30 # DEFAULT = 40
-        ACCUMULATOR_THRESH = 14 #lower = more circles found DEFAULT = 15
+        MIN_DIST = 5 # DEFAULT = 5
+        MAX_RADIUS = 15 # DEFAULT = 15
+        ACCUMULATOR_THRESH = 11 #lower = more circles found DEFAULT = 11
+        CIRCLE_RAD = 11
 
         
-        xformed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
-        #grayimg = cv2.cvtColor(map_mask, cv2.COLOR_BGR2GRAY)
-        dilation = cv2.dilate(mask,kernel,iterations = 1)
+        dilation = cv2.dilate(mask,kernel,iterations = 2)
         erosion = cv2.erode(dilation,kernel,iterations = 1)
 
+
+
+        #test = erosion
         #cv2.imshow('erosion', erosion)
         #BLOCK OUT CIRCLES FIRST:
         circles = cv2.HoughCircles(erosion,cv2.HOUGH_GRADIENT,DP,MIN_DIST, param2=ACCUMULATOR_THRESH,maxRadius=MAX_RADIUS)
-        
         if circles is not None:
             circles = np.uint16(np.around(circles))
             for i in circles[0,:]:
-                #cv2.circle(self.image,(i[0],i[1]),i[2],(0,255,0),2)
-                cv2.circle(erosion,(i[0],i[1]),i[2]+6,0,-1)
+                #cv2.circle(test,(i[0],i[1]),i[2],(0,255,0),2)
+                cv2.circle(erosion,(i[0],i[1]),CIRCLE_RAD,0,-1)
         else:
             print('no circles found!')
+
+
+
 
         #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         RHO_RES = 1
@@ -189,8 +200,13 @@ class MyMap():
         THRESHOLD = 25 #lower = more lines default = 25
         MINLENGTH = 10
 
+        line_mask = cv2.morphologyEx(erosion, cv2.MORPH_CLOSE, kernel, iterations=1)
 
-        lines = cv2.HoughLinesP(erosion,RHO_RES,THETA_RES,THRESHOLD, minLineLength=MINLENGTH)
+
+
+
+        lines = cv2.HoughLinesP(line_mask,RHO_RES,THETA_RES,THRESHOLD, minLineLength=MINLENGTH)
+
         for line in lines:
             for x1, y1, x2, y2 in line:
                 pt1 = pt.Point(x1,y1)
@@ -200,8 +216,10 @@ class MyMap():
                 segment = (pt1, pt2)
                 newLine = obj.Line(coords, direct, segment)
                 lineSet.append(newLine)
+                #cv2.line(self.image,(pt1.x,pt1.y),(pt2.x,pt2.y),(255,0,0),2)
         lineSet = kdtree.create(lineSet)
         
+
 
         return lineSet
     
@@ -212,8 +230,8 @@ class MyMap():
             nearbyLines = lineSet.search_knn((arrow.data.coords.x,arrow.data.coords.y), 6)
             closest_dist = 1000
             for neighbor in nearbyLines:
+                
                 neighbor_dist = abs(pt.perpendicular_dist(neighbor[0].data.segment[0], neighbor[0].data.segment[1], arrow.data.coords))
-
                 if m.isnan(neighbor_dist):
                     neighbor_dist = abs(pt.distance(arrow.data.coords,neighbor[0].data.coords))
 
@@ -231,7 +249,8 @@ class MyMap():
             y = 10 * m.sin(arrow_dir) + arrow.data.coords.y
 
 
-            cv2.line(self.image, (int(x),int(y)), (arrow.data.coords.x,arrow.data.coords.y), (0,255,0),1)
+            cv2.arrowedLine(self.image,(arrow.data.coords.x,arrow.data.coords.y),(int(x),int(y)), (0,255,0),1)
+            
             cv2.circle(self.image,(arrow.data.coords.x,arrow.data.coords.y),1,(255,0,0),-1)  
             arrow.data.direction = arrow_dir
 
@@ -304,6 +323,11 @@ class MyMap():
 
         return gui.points
 
+    def show_arrow_mask(self):
+        plt.imshow(self.image, cmap='gray')
+        plt.title('Map'), plt.xticks([]), plt.yticks([])
+        plt.show()
+        return 0
 
     def show_obstacles(self):
         return 0
@@ -330,7 +354,7 @@ class MyMap():
                 #self.image[coord[0], coord[1]] = [255, 0, 0]
                 #cv2.circle(self.image,(coord[1],coord[0]),1,(255,0,0),-1)  
             plt.imshow(self.image, cmap='gray')
-            plt.title('Edge Image'), plt.xticks([]), plt.yticks([])
+            plt.title('Map'), plt.xticks([]), plt.yticks([])
             plt.show()
         except:
             print('path not found!')
@@ -344,3 +368,8 @@ class MapGUI:
         if event == cv2.EVENT_LBUTTONDOWN:
             self.points.append(pt.Point(x,y))
             self.clicks += 1
+
+if __name__ == "__main__":
+    #m = MyMap(r"C:\Users\jmock\Documents\Projekt Arbeit Images\simpleTest.png")
+    m = MyMap()
+    m.show_arrow_mask()

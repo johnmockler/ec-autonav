@@ -55,6 +55,10 @@ def astar(map_obj, maze, start, end):
         open_list.pop(current_index)
         closed_list.append(current_node)
 
+        maze[current_node.position[0]][current_node.position[1]] = 1
+
+
+
         # Found the goal
         if current_node == end_node:
             path = []
@@ -90,9 +94,12 @@ def astar(map_obj, maze, start, end):
         for child in children:
 
             # Child is on the closed list
-            for closed_child in closed_list:
-                if child == closed_child:
-                    continue
+            # for closed_child in closed_list:
+            #     if child == closed_child:
+            #         continue
+
+            if len([closed_child for closed_child in closed_list if closed_child == child]) > 0:
+                continue
 
             # Create the f, g, and h values
             child.g = current_node.g + 1
@@ -114,28 +121,43 @@ def astar(map_obj, maze, start, end):
                     this heuristic lowers as you get closer to the end, and is 0 when you are at the end
                     (i.e. shouldn't get trapped between arrow and endpoint)
 
+            It is pulled to the correct arrows, but unfortunately it is difficult to raise the attraction of the arrows
+            so that it goes in the correct lane, without causing it to fail to find a solution. 
+
+            This is why it appears to be following the wrong arrows.
+
 
 
             '''
             ARROW_MODIF = 3
-            DIST_MODIF = 10
-            MAX_DIST = 4000
+            MAX_DIST = 10000
+
+            CLOSE_DIST = 2000
             arrow_dist = map_obj.root_arrow.search_knn((child.position[1],child.position[0]),5)
 
             direct2node = pt.direction(pt.Point(child.position[1],child.position[0]), pt.Point(end_node.position[1],end_node.position[0]))
             for arrow in arrow_dist:
 
                 if pt.is_same_halfplane(direct2node, arrow[0].data.direction):
-
+                    # print('route dir')
+                    # print(direct2node)
+                    # print('x coord')
+                    # print(arrow[0].data.coords.x)
+                    # print('y coord')
+                    # print(arrow[0].data.coords.y)
+                    # print('direction')
+                    # print(arrow[0].data.direction)
                     next_arrow_dist = arrow[1]
                     break
                 else:
                     next_arrow_dist = 0
 
-
             if next_arrow_dist < MAX_DIST:
+                
                 child.h = (next_arrow_dist*ARROW_MODIF + child.h)*child.h**0.5
                 #child.k = (next_arrow_dist * child.h**0.5)*ARROW_MODIF
+                #child.h = child.h
+
 
 
             #---------------------------------------------------------------
@@ -149,15 +171,18 @@ def astar(map_obj, maze, start, end):
 
 
             # Child is already in the open list
-            for open_node in open_list:
-                if child == open_node and child.g > open_node.g:
-                    continue
+            if len([open_node for open_node in open_list if child.position == open_node.position and child.g > open_node.g]) > 0:
+                continue
+            # for open_node in open_list:
+            #     if child == open_node and child.g >= open_node.g:
+            #         continue
 
             # Add the child to the open list
             open_list.append(child)
 
 
 def main():
+    #map_obj = MapHandler.MyMap(r"C:\Users\jmock\Documents\Projekt Arbeit Images\simpleTest.png")
     map_obj = MapHandler.MyMap()
     #maze.isObstacle(785,34)
     maze = map_obj.get_map()
@@ -165,11 +190,16 @@ def main():
     #start = (52,447)
     #end = (600,500)
 
+    #map_obj.show_map()
+
+    #map_obj.show_arrow_mask()
+
 
     points = map_obj.query_point()
 
     start = (points[0].y,points[0].x)
     end = (points[1].y,points[1].x)
+
     path = astar(map_obj, maze, start, end)
     map_obj.print_path(path)
 
